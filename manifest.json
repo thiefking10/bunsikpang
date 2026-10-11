@@ -1,0 +1,17 @@
+{
+  "name": "분식팡",
+  "short_name": "분식팡",
+  "description": "같은 분식 3개를 나란히 맞춰 터뜨리는 분식집 매치3 퍼즐",
+  "lang": "ko",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "portrait",
+  "background_color": "#14161d",
+  "theme_color": "#14161d",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
