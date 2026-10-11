@@ -84,7 +84,7 @@
 <div class="ov show" id="ovTitle">
   <div class="card">
     <h1>분식팡<small>분식집 매치3 퍼즐</small></h1>
-    <p>옆 음식과 자리를 바꿔서 <em>같은 분식 3개</em>를 나란히 맞추면 팡!<br>4개는 <em>꼬치</em>(한 줄 싹), L자는 <em>고추장 폭탄</em>(주변 3x3),<br>5개는 <em>사장님 서비스</em>(같은 음식 전부)가 돼요.<br><br><em>쌓이기</em>는 몇 초마다 새 줄이 위에서 떨어져 쌓여요.<br>맨 윗줄까지 차면 끝! 빈칸으로 옮겨도 돼요.</p>
+    <p>옆 음식과 자리를 바꿔서 <em>같은 분식 3개</em>를 나란히 맞추면 팡!<br>4개는 <em>꼬치</em>(한 줄 싹), L자는 <em>고추장 폭탄</em>(주변 3x3),<br>5개는 <em>사장님 서비스</em>(같은 음식 전부)가 돼요.<br><br><em>스테이지</em>는 60초 안에 목표 점수를 채워요.<br><em>쌓이기</em>는 몇 초마다 새 줄이 위에서 떨어져 쌓여요.<br>맨 윗줄까지 차면 끝! 빈칸으로 옮겨도 돼요.</p>
     <button class="go" id="btnStack">쌓이기 모드</button>
     <button class="go ghost" id="btnStart">스테이지 모드</button>
     <button class="go ghost" id="btnPick">스테이지 선택</button>
@@ -264,7 +264,7 @@ const rr=(x,y,w,h,r)=>rrp(g,x,y,w,h,r);
 const idx=(r,c)=>r*COLS+c;
 
 /* ───────── 상태 ───────── */
-const G={level:1,types:5,moves:0,movesMax:0,score:0,target:0,collect:null,collected:0,grid:[],dying:[],particles:[],texts:[],fx:[],
+const G={level:1,types:5,timeLeft:0,timeMax:60,running:false,timeUp:false,moves:0,movesMax:0,score:0,target:0,collect:null,collected:0,grid:[],dying:[],particles:[],texts:[],fx:[],
   busy:true,over:false,sel:null,hint:null,idle:0,t:0,theme:THEMES[0],banner:null,
   mode:'stage',playT:0,sLv:1,interval:9,dropT:0,next:[],topRow:99,dn:0,_bf:-1};
 let cell=50,cw=360,ch=360,bx=20,by=20,dpr=1,backdrop=null;
@@ -272,11 +272,9 @@ const PADR=.42;
 
 function levelCfg(n){
   const types=n<=3?5:n<=10?6:7;
-  const moves=n<=3?28:n<=10?26:24;
-  const target=Math.round((700+n*260)/10)*10;
-  let collect=null;
-  if(n%3===0)collect={type:(n*7+3)%types,n:10+Math.min(n,14)};
-  return{types,moves,target,collect};
+  const time=60;                                   // 애니팡처럼 60초 승부
+  const target=Math.round((1200+n*300)/50)*50;
+  return{types,time,target,collect:null};
 }
 
 /* ───────── 타일/격자 ───────── */
@@ -497,8 +495,14 @@ async function shuffleBoard(){
 }
 
 /* ───────── 한 수 두기 ───────── */
+// 스테이지: 한 번에 4연쇄 이상이면 시간 +2초 (최대 +10초까지)
+function timeBonus(chain){
+  if(G.mode!=='stage'||chain<4||G.timeLeft>=G.timeMax+10)return;
+  G.timeLeft=Math.min(G.timeMax+10,G.timeLeft+2);
+  addText(bx+cw/2-bx,by+ch*.3,'시간 +2초!','#7bd957',cell*.5,1);updateHud();
+}
 async function trySwap(r1,c1,r2,c2){
-  if(G.busy||G.over)return false;
+  if(G.busy||G.over||G.timeUp)return false;
   const a=G.grid[r1][c1],b=G.grid[r2][c2];if(!a&&!b)return false;
   const slide=!a||!b; // 빈칸으로 옮기기 (쌓이기 모드, 옆으로만)
   if(slide&&(G.mode!=='stack'||r1!==r2))return false;
@@ -516,11 +520,11 @@ async function trySwap(r1,c1,r2,c2){
     const ex=new Set([idx(col.r,col.c)]);
     if(other.sp==='color')ex.add(idx(other.r,other.c));
     for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=G.grid[r][c];if(t&&(other.sp==='color'||t.type===other.type))set.add(idx(r,c));}
-    if(G.mode==='stage')G.moves--;updateHud();
-    await resolveBoard(null,set,ex);
+    updateHud();
+    timeBonus(await resolveBoard(null,set,ex));
   }else if(findMatches().cells.size){
-    if(G.mode==='stage')G.moves--;updateHud();
-    await resolveBoard([[r1,c1],[r2,c2]],null);
+    updateHud();
+    timeBonus(await resolveBoard([[r1,c1],[r2,c2]],null));
   }else{
     swapCells(r1,c1,r2,c2);sfx.bad();
     await waitSettled();
@@ -531,7 +535,6 @@ async function trySwap(r1,c1,r2,c2){
   if(!G.over)G.busy=false;
   return true;
 }
-const goalsMet=()=>G.score>=G.target&&(!G.collect||G.collected>=G.collect.n);
 // 쌓이기: 판이 거의 비면 다음 줄을 앞당기고, 움직일 곳이 없으면 자리를 섞는다
 async function afterStack(){
   const n=countTiles();
@@ -565,8 +568,6 @@ async function stackOver(){
 async function afterTurn(){
   updateHud();
   if(G.mode==='stack'){await afterStack();return;}
-  if(goalsMet()){G.over=true;await waitTime(.5);showWin();return;}
-  if(G.moves<=0){G.over=true;await waitTime(.5);showFail();return;}
   if(!hasMove())await shuffleBoard();
 }
 
@@ -583,9 +584,9 @@ function updateHud(){
     return;
   }
   $('lvLabel').textContent='스테이지 '+G.level;
-  $('mvLab').textContent='남은 이동';
-  $('mvN').textContent=Math.max(0,G.moves);
-  $('mvChip').classList.toggle('warn',G.moves<=3&&!G.over);
+  $('mvLab').textContent='남은 시간';
+  $('mvN').textContent=Math.ceil(Math.max(0,G.timeLeft))+'초';
+  $('mvChip').classList.toggle('warn',G.timeLeft<=10&&!G.over);
   $('bar').firstElementChild.style.width=Math.min(100,sc/G.target*100)+'%';
   $('goalTxt').innerHTML='<b>'+sc.toLocaleString()+'</b> / '+G.target.toLocaleString();
   if(G.collect){
@@ -599,20 +600,25 @@ function updateHud(){
 function startLevel(n){
   const cfg=levelCfg(n);
   G.mode='stage';ROWS=7;save.mode='stage';persist();
-  G.level=n;G.types=cfg.types;G.moves=G.movesMax=cfg.moves;G.target=cfg.target;G.collect=cfg.collect;G.collected=0;
+  G.level=n;G.types=cfg.types;G.timeLeft=G.timeMax=cfg.time;G.running=false;G.timeUp=false;G.moves=G.movesMax=0;G.target=cfg.target;G.collect=null;G.collected=0;
   G.score=0;G.over=false;G.sel=null;G.hint=null;G.idle=0;G.chainMax=0;G.theme=themeOf(n);
   G.dying=[];G.particles=[];G.texts=[];G.fx=[];G.banner=null;waiters.length=0;
   ['ovResult','ovLevels','ovTitle'].forEach(id=>$(id).classList.remove('show'));
   resize();
   fillInitial();
   if(!hasMove()||findMatches().cells.size){fillInitial();}
-  const tip=n===1?'음식을 옆 칸으로 끌어서(또는 두 번 눌러서) 같은 분식 3개를 나란히 맞추세요!'
+  const tip=n===1?'60초 안에 목표 점수를 채우세요! 옆 칸으로 끌어서 같은 분식 3개를 맞추면 돼요. 4연쇄 이상은 시간 +2초!'
     :n===2?'4개를 맞추면 꼬치가 돼요. 꼬치가 터지면 한 줄이 싹 지워져요.'
     :n===3?'L자나 T자는 고추장 폭탄, 5개는 사장님 서비스! 서비스와 자리를 바꾸면 그 음식이 전부 터져요.':G.theme.name;
   $('tip').textContent=tip;$('tip').style.color='';
   updateHud();
   G.busy=true;
-  waitSettled().then(()=>{G.busy=false;});
+  waitSettled().then(()=>{G.busy=false;G.running=true;});
+}
+async function endStage(){ // 시간 종료: 정리 중이던 연쇄까지 끝난 뒤 결과
+  G.over=true;G.busy=true;updateHud();
+  await waitTime(.6);
+  if(G.score>=G.target)showWin();else showFail();
 }
 /* ───────── 쌓이기 모드 ───────── */
 const STACK_TIP='몇 초마다 새 줄이 떨어져 쌓여요. 3개 이상 맞춰 치우세요! 빈칸으로 옮겨도 돼요.';
@@ -645,7 +651,7 @@ function showTitle(){
   $('btnStack').textContent='쌓이기 모드'+(save.best?' · 최고 '+save.best.toLocaleString()+'점':'');
   $('ovTitle').classList.add('show');
 }
-function starsNow(){const f=G.moves/G.movesMax;return f>=.35?3:f>=.15?2:1;}
+function starsNow(){const f=G.score/G.target;return f>=1.8?3:f>=1.4?2:1;}
 function showWin(){
   const s=starsNow();
   save.stars[G.level]=Math.max(save.stars[G.level]||0,s);
@@ -653,16 +659,16 @@ function showWin(){
   sfx.clear();
   $('resTitle').textContent='완판!';
   $('resStars').innerHTML='★'.repeat(s)+'<i>'+'★'.repeat(3-s)+'</i>';
-  $('resMsg').innerHTML='점수 '+G.score.toLocaleString()+' · 남은 이동 '+G.moves+'<br><small style="color:#9aa0ae">최고 연쇄 x'+(G.chainMax||1)+'</small>';
+  $('resMsg').innerHTML='점수 '+G.score.toLocaleString()+' / 목표 '+G.target.toLocaleString()+'<br><small style="color:#9aa0ae">최고 연쇄 x'+(G.chainMax||1)+'</small>';
   $('btnNext').textContent='다음 스테이지';$('btnNext').onclick=()=>{enterFs();startLevel(G.level+1);};
   $('btnAgain').textContent='다시 하기';$('btnAgain').onclick=()=>startLevel(G.level);
   $('ovResult').classList.add('show');
 }
 function showFail(){
   sfx.fail();
-  $('resTitle').textContent='재료 소진!';
+  $('resTitle').textContent='시간 종료!';
   $('resStars').innerHTML='<i>★★★</i>';
-  $('resMsg').textContent='주문이 밀렸어요. '+(G.score<G.target?'점수가 '+(G.target-G.score).toLocaleString()+'점 모자라요.':'목표 차량을 다 못 모았어요.');
+  $('resMsg').textContent='주문이 밀렸어요. 점수가 '+(G.target-G.score).toLocaleString()+'점 모자라요.';
   $('btnNext').textContent='다시 도전';$('btnNext').onclick=()=>startLevel(G.level);
   $('btnAgain').textContent='모드 선택';$('btnAgain').onclick=showTitle;
   $('ovResult').classList.add('show');
@@ -852,9 +858,17 @@ function update(dt){
   for(const f of G.fx)f.t+=dt;G.fx=G.fx.filter(f=>f.t<.35);
   if(G.banner){G.banner.t+=dt;if(G.banner.t>=G.banner.life)G.banner=null;}
   runWaiters(dt);
-  if(G.mode==='stack'&&!G.over&&!['ovTitle','ovLevels','ovResult'].some(id=>$(id).classList.contains('show')))stackTick(dt);
+  if(!G.over&&!ovOpen()){
+    if(G.mode==='stack')stackTick(dt);
+    else if(G.running){
+      const sec=Math.ceil(G.timeLeft);G.timeLeft=Math.max(0,G.timeLeft-dt);
+      if(Math.ceil(G.timeLeft)!==sec)updateHud();
+      if(G.timeLeft<=0){G.timeUp=true;if(!G.busy)endStage();}
+    }
+  }
   if(!G.busy&&!G.over&&!G.hint){G.idle+=dt;if(G.idle>6){const mv=allMoves();if(mv.length)G.hint=mv[(Math.random()*mv.length)|0];}}
 }
+const ovOpen=()=>['ovTitle','ovLevels','ovResult'].some(id=>$(id).classList.contains('show'));
 // 쌓이기: 시간이 지날수록 빨라지고 음식 종류가 늘어난다. 정리 중에도 타이머는 흐르고, 다 끝나야 다음 줄이 떨어진다
 function stackTick(dt){
   G.playT+=dt;
