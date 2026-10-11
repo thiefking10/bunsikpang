@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>분식팡</title>
 <meta name="theme-color" content="#14161d">
-<meta name="description" content="같은 분식 3개를 나란히 맞춰 터뜨리는 분식집 매치3 퍼즐">
+<meta name="description" content="같은 분식 3개를 맞춰 터뜨리는 분식집 매치3 퍼즐 · 쌓이기 모드 / 스테이지 모드">
 <link rel="icon" href="icons/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -32,6 +32,9 @@
   #goal{flex:none;margin:10px 2px 0;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--dim)}
   #bar{flex:1;height:12px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);overflow:hidden}
   #bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#ffb02e,#ffd24a);border-radius:99px;transition:width .35s}
+  #bar i.fast{transition:none}
+  #bar i.hot{background:linear-gradient(90deg,#ff7a2e,#ff5a4f)}
+  #goalLab{color:var(--yellow);white-space:nowrap}
   #goalTxt b{color:var(--yellow);font-weight:400}
   #stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin:10px 0}
   canvas{display:block;border-radius:18px;touch-action:none;box-shadow:0 10px 40px rgba(0,0,0,.45)}
@@ -65,10 +68,10 @@
 <div id="app">
   <header>
     <button class="chip" id="btnLevels"><span id="lvLabel">스테이지 1</span> ▾</button>
-    <div class="chip" id="mvChip"><span>남은 이동</span> <b id="mvN">0</b></div>
+    <div class="chip" id="mvChip"><span id="mvLab">남은 이동</span> <b id="mvN">0</b></div>
     <div class="chip" id="colChip" style="display:none"><span class="mini" id="colIcon"><img id="colImg" alt=""></span><b id="colN">0</b></div>
   </header>
-  <div id="goal"><div id="bar"><i></i></div><span id="goalTxt"></span></div>
+  <div id="goal"><span id="goalLab" style="display:none">다음 줄</span><div id="bar"><i></i></div><span id="goalTxt"></span></div>
   <div id="stage"><canvas id="cv"></canvas></div>
   <div id="tip"></div>
   <footer>
@@ -81,8 +84,9 @@
 <div class="ov show" id="ovTitle">
   <div class="card">
     <h1>분식팡<small>분식집 매치3 퍼즐</small></h1>
-    <p>옆 음식과 자리를 바꿔서 <em>같은 분식 3개</em>를 나란히 맞추면 팡!<br>4개는 <em>꼬치</em>(한 줄 싹), L자는 <em>고추장 폭탄</em>(주변 3x3),<br>5개는 <em>사장님 서비스</em>(같은 음식 전부)가 돼요.</p>
-    <button class="go" id="btnStart">시작</button>
+    <p>옆 음식과 자리를 바꿔서 <em>같은 분식 3개</em>를 나란히 맞추면 팡!<br>4개는 <em>꼬치</em>(한 줄 싹), L자는 <em>고추장 폭탄</em>(주변 3x3),<br>5개는 <em>사장님 서비스</em>(같은 음식 전부)가 돼요.<br><br><em>쌓이기</em>는 몇 초마다 새 줄이 위에서 떨어져 쌓여요.<br>맨 윗줄까지 차면 끝! 빈칸으로 옮겨도 돼요.</p>
+    <button class="go" id="btnStack">쌓이기 모드</button>
+    <button class="go ghost" id="btnStart">스테이지 모드</button>
     <button class="go ghost" id="btnPick">스테이지 선택</button>
   </div>
 </div>
@@ -110,7 +114,9 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const cv=$('cv'), g=cv.getContext('2d');
-const COLS=7,ROWS=7,SP99=99;
+const COLS=7,SP99=99;
+let ROWS=7;                       // 스테이지 모드 7줄, 쌓이기 모드는 STACK_ROWS줄(맨 윗줄이 위험선)
+const STACK_ROWS=9,STACK_START=4; // 쌓이기: 판 높이 / 처음 깔려 있는 줄 수
 
 /* ───────── 분식 블록: 코드로 그린 아이콘 ───────── */
 const TYPES=[
@@ -227,7 +233,7 @@ const CHAIN_MSG=['','','맛있다!','대박!','먹방 폭주!','푸드파이터!
 
 /* ───────── 저장 ───────── */
 const SAVE='bunsikpang_v1';
-let save={max:1,stars:{}};
+let save={max:1,stars:{},best:0,mode:'stack'};
 try{Object.assign(save,JSON.parse(localStorage.getItem(SAVE)||'{}'));}catch(e){}
 const persist=()=>{try{localStorage.setItem(SAVE,JSON.stringify(save));}catch(e){}};
 
@@ -246,6 +252,7 @@ const sfx={
   bad(){tone(220,150,.16,'square',.05);},
   pop(chain){const b=360+Math.min(chain,8)*55;tone(b,b*1.5,.12,'triangle',.08);tone(b*1.5,b*2,.1,'sine',.05,.05);},
   special(){tone(180,900,.3,'sawtooth',.05);},
+  drop(){tone(190,110,.14,'square',.045);},
   clear(){[523,659,784,1047].forEach((f,i)=>tone(f,f,.2,'triangle',.09,i*.1));},
   fail(){tone(330,150,.55,'sawtooth',.07);}
 };
@@ -258,7 +265,8 @@ const idx=(r,c)=>r*COLS+c;
 
 /* ───────── 상태 ───────── */
 const G={level:1,types:5,moves:0,movesMax:0,score:0,target:0,collect:null,collected:0,grid:[],dying:[],particles:[],texts:[],fx:[],
-  busy:true,over:false,sel:null,hint:null,idle:0,t:0,theme:THEMES[0],banner:null};
+  busy:true,over:false,sel:null,hint:null,idle:0,t:0,theme:THEMES[0],banner:null,
+  mode:'stage',playT:0,sLv:1,interval:9,dropT:0,next:[],topRow:99,dn:0,_bf:-1};
 let cell=50,cw=360,ch=360,bx=20,by=20,dpr=1,backdrop=null;
 const PADR=.42;
 
@@ -283,16 +291,24 @@ function swapCells(r1,c1,r2,c2){
   if(a)setPos(a,r2,c2);if(b)setPos(b,r1,c1);
 }
 function randType(){return(Math.random()*G.types)|0;}
-function fillInitial(){
+function fillInitial(rows){ // 아래에서 rows줄만 채운다 (스테이지는 판 전체)
   G.grid=Array.from({length:ROWS},()=>Array(COLS).fill(null));
-  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+  const top=ROWS-(rows||ROWS);
+  for(let r=top;r<ROWS;r++)for(let c=0;c<COLS;c++){
     let ty,k=0;
     do{ty=randType();k++;}while(k<30&&(
       (c>=2&&G.grid[r][c-1].type===ty&&G.grid[r][c-2].type===ty)||
-      (r>=2&&G.grid[r-1][c].type===ty&&G.grid[r-2][c].type===ty)));
-    G.grid[r][c]=mkTile(r,c,ty,ROWS-r+((Math.random()*2)|0)+(COLS-c)*0);
+      (r>=top+2&&G.grid[r-1][c].type===ty&&G.grid[r-2][c].type===ty)));
+    G.grid[r][c]=mkTile(r,c,ty,ROWS-r+((Math.random()*2)|0));
   }
 }
+// 쌓이기: 다음에 떨어질 한 줄 (가로로 3개가 붙지 않게)
+function genRow(){
+  const row=[];
+  for(let c=0;c<COLS;c++){let ty,k=0;do{ty=randType();k++;}while(k<20&&c>=2&&row[c-1]===ty&&row[c-2]===ty);row.push(ty);}
+  return row;
+}
+const countTiles=()=>{let n=0;for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(G.grid[r][c])n++;return n;};
 
 /* ───────── 매치 찾기 ───────── */
 function findMatches(){
@@ -371,7 +387,7 @@ function expandClear(clear,exempt){
 /* ───────── 애니메이션 대기 ───────── */
 const waiters=[];
 const waitTime=sec=>new Promise(res=>waiters.push({t:sec,res}));
-const settled=()=>{for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=G.grid[r][c];if(!t||t.fall||Math.abs(t.x-t.tx)>.8||Math.abs(t.y-t.ty)>.8)return false;}return true;};
+const settled=()=>{for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=G.grid[r][c];if(!t)continue;if(t.fall||Math.abs(t.x-t.tx)>.8||Math.abs(t.y-t.ty)>.8)return false;}return true;};
 const waitSettled=()=>new Promise(res=>waiters.push({cond:settled,res,t:0,min:.04}));
 function runWaiters(dt){
   for(let i=waiters.length-1;i>=0;i--){
@@ -389,7 +405,7 @@ function applyGravity(){
       const t=G.grid[r][c];
       if(t){if(r!==w){G.grid[w][c]=t;G.grid[r][c]=null;setPos(t,w,c);t.fall=true;}w--;}
     }
-    for(let r=w;r>=0;r--){G.grid[r][c]=mkTile(r,c,randType(),w-r);}
+    if(G.mode==='stage')for(let r=w;r>=0;r--){G.grid[r][c]=mkTile(r,c,randType(),w-r);} // 쌓이기는 빈칸 그대로 둔다
   }
 }
 
@@ -412,6 +428,7 @@ async function popTiles(clear,chain){
   if(!n)return;
   const mult=Math.min(1+.5*(chain-1),3.5),gain=Math.round(n*20*mult);
   G.score+=gain;
+  if(G.mode==='stack')G.dropT=Math.max(-2.5,G.dropT-(n*.1+(chain>1?(chain-1)*.7:0))); // 터뜨릴수록 다음 줄이 늦게 와요
   sfx.pop(chain);
   addText(sx/n,sy/n,'+'+gain,chain>1?'#ffd24a':'#fff',cell*(.34+Math.min(chain,5)*.03));
   if(chain>=2&&CHAIN_MSG[Math.min(chain,5)])G.banner={text:CHAIN_MSG[Math.min(chain,5)]+(chain>2?' x'+chain:''),t:0,life:1};
@@ -447,30 +464,33 @@ async function resolveBoard(swapAnchor,forcedSet,forcedExempt){
 }
 
 /* ───────── 가능한 수 / 섞기 ───────── */
+// 두 칸을 바꾼 뒤(빈칸이면 음식이 아래로 떨어진 뒤) 3개 이상 이어지는지 미리 계산한다
 function wouldMatch(r1,c1,r2,c2){
-  const a=G.grid[r1][c1],b=G.grid[r2][c2];if(!a||!b)return false;
-  if(a.sp==='color'||b.sp==='color')return true;
-  G.grid[r1][c1]=b;G.grid[r2][c2]=a;
-  const ok=findMatches().cells.size>0;
-  G.grid[r1][c1]=a;G.grid[r2][c2]=b;
+  const a=G.grid[r1][c1],b=G.grid[r2][c2];if(!a&&!b)return false;
+  if(a&&b&&(a.sp==='color'||b.sp==='color'))return true;
+  const old=G.grid,sim=old.map(row=>row.slice());
+  sim[r1][c1]=b;sim[r2][c2]=a;
+  for(let c=0;c<COLS;c++){let w=ROWS-1;for(let r=ROWS-1;r>=0;r--){const t=sim[r][c];if(t){sim[r][c]=null;sim[w][c]=t;w--;}}}
+  G.grid=sim;const ok=findMatches().cells.size>0;G.grid=old;
   return ok;
 }
 function allMoves(){
   const out=[];
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
     if(c+1<COLS&&wouldMatch(r,c,r,c+1))out.push([r,c,r,c+1]);
-    if(r+1<ROWS&&wouldMatch(r,c,r+1,c))out.push([r,c,r+1,c]);
+    if(r+1<ROWS&&G.grid[r][c]&&G.grid[r+1][c]&&wouldMatch(r,c,r+1,c))out.push([r,c,r+1,c]);
   }
   return out;
 }
 const hasMove=()=>allMoves().length>0;
 async function shuffleBoard(){
   addText(bx+cw/2-bx,by+ch/2-by,'자리 바꾸는 중!','#fff',cell*.45,1.1);
+  const pos=[];for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(G.grid[r][c])pos.push([r,c]);
+  const list=pos.map(([r,c])=>G.grid[r][c]);
   let guard=0;
   do{
-    const list=[];for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)list.push(G.grid[r][c]);
     for(let i=list.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[list[i],list[j]]=[list[j],list[i]];}
-    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){G.grid[r][c]=list[idx(r,c)];setPos(G.grid[r][c],r,c);G.grid[r][c].scale=.6;}
+    pos.forEach(([r,c],i)=>{G.grid[r][c]=list[i];setPos(list[i],r,c);list[i].scale=.6;});
     guard++;
   }while(guard<60&&(findMatches().cells.size>0||!hasMove()));
   await waitSettled();
@@ -479,32 +499,72 @@ async function shuffleBoard(){
 /* ───────── 한 수 두기 ───────── */
 async function trySwap(r1,c1,r2,c2){
   if(G.busy||G.over)return false;
-  const a=G.grid[r1][c1],b=G.grid[r2][c2];if(!a||!b)return false;
+  const a=G.grid[r1][c1],b=G.grid[r2][c2];if(!a&&!b)return false;
+  const slide=!a||!b; // 빈칸으로 옮기기 (쌓이기 모드, 옆으로만)
+  if(slide&&(G.mode!=='stack'||r1!==r2))return false;
   G.busy=true;G.sel=null;G.hint=null;G.idle=0;
   swapCells(r1,c1,r2,c2);sfx.swap();
+  if(slide){
+    applyGravity();
+    await waitSettled();
+    const mv=a||b;
+    await resolveBoard([[mv.r,mv.c]],null);
+  }else{
   await waitSettled();
   if(a.sp==='color'||b.sp==='color'){
     const col=a.sp==='color'?a:b,other=col===a?b:a,set=new Set([idx(col.r,col.c)]);
     const ex=new Set([idx(col.r,col.c)]);
     if(other.sp==='color')ex.add(idx(other.r,other.c));
     for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=G.grid[r][c];if(t&&(other.sp==='color'||t.type===other.type))set.add(idx(r,c));}
-    G.moves--;updateHud();
+    if(G.mode==='stage')G.moves--;updateHud();
     await resolveBoard(null,set,ex);
   }else if(findMatches().cells.size){
-    G.moves--;updateHud();
+    if(G.mode==='stage')G.moves--;updateHud();
     await resolveBoard([[r1,c1],[r2,c2]],null);
   }else{
     swapCells(r1,c1,r2,c2);sfx.bad();
     await waitSettled();
     G.busy=false;return false;
   }
+  }
   await afterTurn();
-  G.busy=false;
+  if(!G.over)G.busy=false;
   return true;
 }
 const goalsMet=()=>G.score>=G.target&&(!G.collect||G.collected>=G.collect.n);
+// 쌓이기: 판이 거의 비면 다음 줄을 앞당기고, 움직일 곳이 없으면 자리를 섞는다
+async function afterStack(){
+  const n=countTiles();
+  if(n<=COLS)G.dropT=Math.max(G.dropT,G.interval-1.2);
+  if(n>=8&&!hasMove())await shuffleBoard();
+}
+const intervalFor=lv=>Math.max(1.9,7.6-.6*(lv-1));
+const typesFor=lv=>lv<2?5:lv<4?6:7;
+async function spawnRow(){
+  G.busy=true;G.sel=null;G.hint=null;G.idle=0;
+  const row=G.next;G.dropT=0;
+  for(let c=0;c<COLS;c++)if(G.grid[0][c]){await stackOver();return;}
+  for(let c=0;c<COLS;c++)G.grid[0][c]=mkTile(0,c,row[c],0);
+  G.next=genRow();
+  sfx.drop();
+  applyGravity();
+  await waitSettled();
+  await resolveBoard(null,null);
+  for(let c=0;c<COLS;c++)if(G.grid[0][c]){await stackOver();return;} // 맨 윗줄까지 찼다
+  updateHud();
+  await afterStack();
+  G.busy=false;
+}
+async function stackOver(){
+  G.over=true;G.busy=true;sfx.fail();
+  const nb=G.score>(save.best||0);
+  if(nb)save.best=G.score;persist();updateHud();
+  await waitTime(.9);
+  showStackResult(nb);
+}
 async function afterTurn(){
   updateHud();
+  if(G.mode==='stack'){await afterStack();return;}
   if(goalsMet()){G.over=true;await waitTime(.5);showWin();return;}
   if(G.moves<=0){G.over=true;await waitTime(.5);showFail();return;}
   if(!hasMove())await shuffleBoard();
@@ -512,10 +572,20 @@ async function afterTurn(){
 
 /* ───────── HUD ───────── */
 function updateHud(){
+  const stack=G.mode==='stack',sc=Math.min(G.score,99999999);
+  $('goalLab').style.display=stack?'':'none';
+  $('bar').firstElementChild.className=stack?'fast':'';
+  if(stack){
+    $('lvLabel').textContent='쌓이기 Lv '+G.sLv;
+    $('mvLab').textContent='최고';$('mvN').textContent=Math.max(save.best||0,G.score).toLocaleString();
+    $('mvChip').classList.remove('warn');$('colChip').style.display='none';
+    $('goalTxt').innerHTML='<b>'+sc.toLocaleString()+'</b>점';
+    return;
+  }
   $('lvLabel').textContent='스테이지 '+G.level;
+  $('mvLab').textContent='남은 이동';
   $('mvN').textContent=Math.max(0,G.moves);
   $('mvChip').classList.toggle('warn',G.moves<=3&&!G.over);
-  const sc=Math.min(G.score,99999999);
   $('bar').firstElementChild.style.width=Math.min(100,sc/G.target*100)+'%';
   $('goalTxt').innerHTML='<b>'+sc.toLocaleString()+'</b> / '+G.target.toLocaleString();
   if(G.collect){
@@ -528,6 +598,7 @@ function updateHud(){
 /* ───────── 레벨 시작/결과 ───────── */
 function startLevel(n){
   const cfg=levelCfg(n);
+  G.mode='stage';ROWS=7;save.mode='stage';persist();
   G.level=n;G.types=cfg.types;G.moves=G.movesMax=cfg.moves;G.target=cfg.target;G.collect=cfg.collect;G.collected=0;
   G.score=0;G.over=false;G.sel=null;G.hint=null;G.idle=0;G.chainMax=0;G.theme=themeOf(n);
   G.dying=[];G.particles=[];G.texts=[];G.fx=[];G.banner=null;waiters.length=0;
@@ -538,10 +609,41 @@ function startLevel(n){
   const tip=n===1?'음식을 옆 칸으로 끌어서(또는 두 번 눌러서) 같은 분식 3개를 나란히 맞추세요!'
     :n===2?'4개를 맞추면 꼬치가 돼요. 꼬치가 터지면 한 줄이 싹 지워져요.'
     :n===3?'L자나 T자는 고추장 폭탄, 5개는 사장님 서비스! 서비스와 자리를 바꾸면 그 음식이 전부 터져요.':G.theme.name;
-  $('tip').textContent=tip;
+  $('tip').textContent=tip;$('tip').style.color='';
   updateHud();
   G.busy=true;
   waitSettled().then(()=>{G.busy=false;});
+}
+/* ───────── 쌓이기 모드 ───────── */
+const STACK_TIP='몇 초마다 새 줄이 떨어져 쌓여요. 3개 이상 맞춰 치우세요! 빈칸으로 옮겨도 돼요.';
+function startStack(){
+  G.mode='stack';ROWS=STACK_ROWS;save.mode='stack';persist();
+  G.level=1;G.sLv=1;G.playT=0;G.types=typesFor(1);G.interval=intervalFor(1);G.dropT=-2; // 첫 줄은 여유 있게
+  G.moves=G.movesMax=0;G.target=1;G.collect=null;G.collected=0;
+  G.score=0;G.over=false;G.sel=null;G.hint=null;G.idle=0;G.chainMax=0;G.theme=THEMES[0];G.dn=0;G._bf=-1;
+  G.dying=[];G.particles=[];G.texts=[];G.fx=[];G.banner=null;waiters.length=0;
+  ['ovResult','ovLevels','ovTitle'].forEach(id=>$(id).classList.remove('show'));
+  resize();
+  let k=0;do{fillInitial(STACK_START);k++;}while(k<20&&!hasMove());
+  G.next=genRow();
+  $('tip').textContent=STACK_TIP;$('tip').style.color='';
+  updateHud();
+  G.busy=true;
+  waitSettled().then(()=>{G.busy=false;});
+}
+function showStackResult(newBest){
+  $('resTitle').textContent='가게 포화!';
+  $('resStars').innerHTML='<span style="font-size:46px;letter-spacing:0">'+G.score.toLocaleString()+'</span>';
+  const sec=Math.round(G.playT);
+  $('resMsg').innerHTML=(newBest?'<em>🎉 신기록!</em><br>':'최고 기록 '+(save.best||0).toLocaleString()+'점<br>')+'Lv '+G.sLv+' · '+(sec>=60?Math.floor(sec/60)+'분 ':'')+sec%60+'초 버텼어요<br><small style="color:#9aa0ae">최고 연쇄 x'+(G.chainMax||1)+'</small>';
+  $('btnNext').textContent='다시 도전';$('btnNext').onclick=()=>{enterFs();startStack();};
+  $('btnAgain').textContent='모드 선택';$('btnAgain').onclick=showTitle;
+  $('ovResult').classList.add('show');
+}
+function showTitle(){
+  $('ovResult').classList.remove('show');
+  $('btnStack').textContent='쌓이기 모드'+(save.best?' · 최고 '+save.best.toLocaleString()+'점':'');
+  $('ovTitle').classList.add('show');
 }
 function starsNow(){const f=G.moves/G.movesMax;return f>=.35?3:f>=.15?2:1;}
 function showWin(){
@@ -553,6 +655,7 @@ function showWin(){
   $('resStars').innerHTML='★'.repeat(s)+'<i>'+'★'.repeat(3-s)+'</i>';
   $('resMsg').innerHTML='점수 '+G.score.toLocaleString()+' · 남은 이동 '+G.moves+'<br><small style="color:#9aa0ae">최고 연쇄 x'+(G.chainMax||1)+'</small>';
   $('btnNext').textContent='다음 스테이지';$('btnNext').onclick=()=>{enterFs();startLevel(G.level+1);};
+  $('btnAgain').textContent='다시 하기';$('btnAgain').onclick=()=>startLevel(G.level);
   $('ovResult').classList.add('show');
 }
 function showFail(){
@@ -561,6 +664,7 @@ function showFail(){
   $('resStars').innerHTML='<i>★★★</i>';
   $('resMsg').textContent='주문이 밀렸어요. '+(G.score<G.target?'점수가 '+(G.target-G.score).toLocaleString()+'점 모자라요.':'목표 차량을 다 못 모았어요.');
   $('btnNext').textContent='다시 도전';$('btnNext').onclick=()=>startLevel(G.level);
+  $('btnAgain').textContent='모드 선택';$('btnAgain').onclick=showTitle;
   $('ovResult').classList.add('show');
 }
 function openLevels(){
@@ -589,7 +693,7 @@ function resize(){
 }
 window.addEventListener('resize',resize);
 function buildBackdrop(){
-  const th=G.theme,rng=mulberry32(G.level*977+11);
+  const th=G.theme,rng=mulberry32((G.mode==='stack'?500+G.sLv:G.level)*977+11);
   const c=document.createElement('canvas');c.width=Math.round(cw*dpr);c.height=Math.round(ch*dpr);
   const f=c.getContext('2d');f.setTransform(dpr,0,0,dpr,0,0);
   const bw=COLS*cell,bh=ROWS*cell,pad=cell*.1;
@@ -695,11 +799,27 @@ function render(){
   for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){const t=G.grid[r][c];if(t)drawTile(t,false);}
   for(const t of G.dying)drawTile(t,true);
   drawFx();
+  if(G.mode==='stack'){ // 맨 윗줄 = 위험선
+    const pulse=.5+.5*Math.sin(G.t*8),a=.1+G.dn*.3*pulse;
+    g.fillStyle=`rgba(255,60,50,${a})`;g.fillRect(bx,by,COLS*cell,cell);
+    g.save();g.strokeStyle=`rgba(255,90,79,${.55+.4*G.dn*pulse})`;g.lineWidth=Math.max(2,cell*.04);g.setLineDash([cell*.2,cell*.12]);
+    g.beginPath();g.moveTo(bx,by+cell);g.lineTo(bx+COLS*cell,by+cell);g.stroke();g.restore();
+  }
   // 선택/힌트 표시
   const mark=(r,c,col,w)=>{g.strokeStyle=col;g.lineWidth=w;rr(bx+c*cell+cell*.04,by+r*cell+cell*.04,cell*.92,cell*.92,cell*.2);g.stroke();};
   if(G.sel)mark(G.sel[0],G.sel[1],'#fff',3);
   if(G.hint&&!G.busy){const p=.5+.5*Math.sin(G.t*9);g.save();g.shadowColor='#ffd24a';g.shadowBlur=14;mark(G.hint[0],G.hint[1],`rgba(255,210,74,${.4+.6*p})`,4);mark(G.hint[2],G.hint[3],`rgba(255,210,74,${.4+.6*p})`,4);g.restore();}
   g.restore();
+  if(G.mode==='stack'&&G.next.length){ // 판 위쪽: 곧 떨어질 다음 줄 미리보기
+    const u=Math.max(0,Math.min(1,G.dropT/G.interval)),sz=cell*(.3+.1*u);
+    for(let c=0;c<COLS;c++){
+      const ty=TYPES[G.next[c]];if(!ty)continue;
+      const px=bx+c*cell+cell/2,py=by*.5+(u>.85?Math.sin(G.t*40+c)*cell*.025:0);
+      g.globalAlpha=.5+.5*u;g.fillStyle=ty.c;rrp(g,px-sz*.62,py-sz*.62,sz*1.24,sz*1.24,sz*.3);g.fill();
+      g.drawImage(ICON[G.next[c]],px-sz/2,py-sz/2,sz,sz);
+    }
+    g.globalAlpha=1;
+  }
   for(const p of G.particles){g.globalAlpha=Math.max(0,p.life/p.max);g.fillStyle=p.color;g.beginPath();g.arc(p.x,p.y,p.size,0,6.28);g.fill();}
   g.globalAlpha=1;g.textAlign='center';g.textBaseline='middle';
   for(const tx of G.texts){const u=tx.t/tx.life;g.globalAlpha=Math.max(0,1-u*u);g.font=`bold ${Math.round(tx.size)}px "Gowun Dodum",sans-serif`;
@@ -732,7 +852,26 @@ function update(dt){
   for(const f of G.fx)f.t+=dt;G.fx=G.fx.filter(f=>f.t<.35);
   if(G.banner){G.banner.t+=dt;if(G.banner.t>=G.banner.life)G.banner=null;}
   runWaiters(dt);
+  if(G.mode==='stack'&&!G.over&&!['ovTitle','ovLevels','ovResult'].some(id=>$(id).classList.contains('show')))stackTick(dt);
   if(!G.busy&&!G.over&&!G.hint){G.idle+=dt;if(G.idle>6){const mv=allMoves();if(mv.length)G.hint=mv[(Math.random()*mv.length)|0];}}
+}
+// 쌓이기: 시간이 지날수록 빨라지고 음식 종류가 늘어난다. 정리 중에도 타이머는 흐르고, 다 끝나야 다음 줄이 떨어진다
+function stackTick(dt){
+  G.playT+=dt;
+  const lv=1+Math.floor(G.playT/15);
+  if(lv!==G.sLv){
+    G.sLv=lv;G.interval=intervalFor(lv);G.types=typesFor(lv);
+    G.banner={text:'속도 UP! Lv '+lv,t:0,life:1.2};
+    const th=THEMES[Math.floor((lv-1)/2)%THEMES.length];if(th!==G.theme){G.theme=th;buildBackdrop();}
+    updateHud();
+  }
+  G.dropT+=dt;if(G.dropT>=G.interval&&!G.busy)spawnRow();
+  let top=ROWS;for(let c=0;c<COLS&&top>1;c++)for(let r=0;r<top;r++)if(G.grid[r][c]){top=r;break;}
+  G.topRow=top;
+  const dn=top<=1?1:top===2?.5:0;
+  if(dn!==G.dn){G.dn=dn;$('tip').textContent=dn>=1?'⚠ 위험! 한 줄만 더 쌓이면 끝나요!':STACK_TIP;$('tip').style.color=dn>=1?'var(--red)':'';}
+  const f=Math.max(0,Math.min(1,G.dropT/G.interval));
+  if(Math.abs(f-G._bf)>.002){G._bf=f;const i=$('bar').firstElementChild;i.style.width=f*100+'%';i.className='fast'+(f>.75?' hot':'');}
 }
 let last=performance.now();
 function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;update(dt);render();requestAnimationFrame(loop);}
@@ -752,6 +891,7 @@ cv.addEventListener('pointerdown',e=>{
   const p=cellAt(e);if(!p)return;
   if(G.sel&&Math.abs(G.sel[0]-p.r)+Math.abs(G.sel[1]-p.c)===1){const s=G.sel;G.sel=null;trySwap(s[0],s[1],p.r,p.c);drag=null;return;}
   if(G.sel&&G.sel[0]===p.r&&G.sel[1]===p.c){G.sel=null;drag=null;return;}
+  if(!G.grid[p.r][p.c]){G.sel=null;drag=null;return;} // 빈칸은 고를 수 없다 (옮길 곳으로만)
   G.sel=[p.r,p.c];drag={r:p.r,c:p.c,x:e.clientX,y:e.clientY,id:e.pointerId};
   try{cv.setPointerCapture(e.pointerId);}catch(_){}
 });
@@ -775,18 +915,18 @@ function enterFs(){if(!fsReq||fsOn())return;try{const p=fsReq.call(fsEl,{navigat
 function toggleFs(){if(fsOn()){try{(document.exitFullscreen||document.webkitExitFullscreen).call(document);}catch(e){}}else enterFs();}
 if(fsReq){$('btnFs').style.display='';$('btnFs').onclick=toggleFs;}
 ['fullscreenchange','webkitfullscreenchange'].forEach(ev=>document.addEventListener(ev,()=>{$('btnFs').textContent=fsOn()?'✕':'⛶';setTimeout(resize,60);}));
-$('btnRetry').onclick=()=>startLevel(G.level);
-$('btnAgain').onclick=()=>startLevel(G.level);
-$('btnLevels').onclick=openLevels;
+$('btnRetry').onclick=()=>G.mode==='stack'?startStack():startLevel(G.level);
+$('btnLevels').onclick=()=>G.mode==='stack'?showTitle():openLevels();
 $('btnPick').onclick=openLevels;
 $('btnLvClose').onclick=()=>$('ovLevels').classList.remove('show');
-$('btnStart').onclick=()=>{ac();enterFs();$('ovTitle').classList.remove('show');};
+$('btnStack').onclick=()=>{ac();enterFs();startStack();};
+$('btnStart').onclick=()=>{ac();enterFs();startLevel(Math.min(save.max,200));};
 $('btnSnd').onclick=()=>{sndOn=!sndOn;$('btnSnd').textContent=sndOn?'🔊 소리':'🔇 소리';};
 
 const startN=Math.min(save.max,200);
-$('btnStart').textContent=startN>1?'이어하기 — 스테이지 '+startN:'시작';
-startLevel(startN);
-$('ovTitle').classList.add('show');
+$('btnStart').textContent=startN>1?'스테이지 모드 — 이어하기 '+startN:'스테이지 모드';
+if(save.mode==='stage')startLevel(startN);else startStack();
+showTitle();
 requestAnimationFrame(loop);
 if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>buildBackdrop());
