@@ -35,6 +35,27 @@
   #bar i.fast{transition:none}
   #bar i.hot{background:linear-gradient(90deg,#ff7a2e,#ff5a4f)}
   #goalLab{color:var(--yellow);white-space:nowrap}
+  #vs{flex:none;margin:10px 2px 0;display:none;flex-wrap:wrap;gap:6px;font-size:13px}
+  .vsp{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 10px;color:var(--dim);white-space:nowrap}
+  .vsp b{color:var(--ink);font-weight:400;margin-left:4px}
+  .vsp.me{border-color:var(--yellow);color:var(--ink)}.vsp.me b{color:var(--yellow)}
+  .vsp.tA,.vsp.tB{flex:1;text-align:center;font-size:15px}
+  .tA{border-color:#e8564a}.tB{border-color:#4f90e6}
+  .mpin{width:100%;font:inherit;font-size:17px;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:13px;text-align:center;margin-top:8px;text-transform:uppercase}
+  #mpName{text-transform:none}
+  .mprow{display:flex;gap:8px;margin-top:10px}.mprow .mpin{margin-top:0;flex:1.2}.mprow .go{margin-top:0;flex:1}
+  .mpcode{font-size:14px;color:var(--dim);margin:6px 0 2px}.mpcode b{font-family:'Black Han Sans',sans-serif;font-weight:400;font-size:34px;letter-spacing:.2em;color:var(--yellow);margin-left:8px}
+  #mpMode{display:flex;gap:8px;margin:12px 0 4px}#mpMode .go{margin:0;padding:10px;font-size:15px}
+  #mpMode .go.on{background:var(--yellow);color:#1a1500}
+  #mpList{margin:10px 0 0;text-align:left}
+  .mpl{display:flex;align-items:center;gap:8px;padding:9px 12px;margin-top:6px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;font-size:16px}
+  .mpl.me{border-color:var(--yellow)}.mpl .nm{flex:1}
+  .tb{font:inherit;font-size:13px;color:#fff;border:0;border-radius:8px;padding:5px 10px}
+  .tb.A{background:#e8564a}.tb.B{background:#4f90e6}
+  .mpmsg{min-height:20px;margin:10px 0 0!important;font-size:14px!important;color:var(--red)!important}
+  #mpHint{margin:12px 0 4px!important;font-size:14px!important;color:var(--dim)!important}
+  .rk{display:flex;justify-content:space-between;padding:7px 4px;border-bottom:1px solid var(--line);text-align:left}
+  .rk.me{color:var(--yellow)}
   #goalTxt b{color:var(--yellow);font-weight:400}
   #stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin:10px 0}
   canvas{display:block;border-radius:18px;touch-action:none;box-shadow:0 10px 40px rgba(0,0,0,.45)}
@@ -71,6 +92,7 @@
     <div class="chip" id="mvChip"><span id="mvLab">남은 이동</span> <b id="mvN">0</b></div>
     <div class="chip" id="colChip" style="display:none"><span class="mini" id="colIcon"><img id="colImg" alt=""></span><b id="colN">0</b></div>
   </header>
+  <div id="vs"></div>
   <div id="goal"><span id="goalLab" style="display:none">다음 줄</span><div id="bar"><i></i></div><span id="goalTxt"></span></div>
   <div id="stage"><canvas id="cv"></canvas></div>
   <div id="tip"></div>
@@ -86,6 +108,7 @@
     <h1>분식팡<small>분식집 매치3 퍼즐</small></h1>
     <p>옆 음식과 자리를 바꿔서 <em>같은 분식 3개</em>를 나란히 맞추면 팡!<br>4개는 <em>꼬치</em>(한 줄 싹), L자는 <em>고추장 폭탄</em>(주변 3x3),<br>5개는 <em>사장님 서비스</em>(같은 음식 전부)가 돼요.<br><br><em>스테이지</em>는 60초 안에 목표 점수를 채워요.<br><em>쌓이기</em>는 몇 초마다 새 줄이 위에서 떨어져 쌓여요.<br>맨 윗줄까지 차면 끝! 빈칸으로 옮겨도 돼요.</p>
     <button class="go" id="btnStack">쌓이기 모드</button>
+    <button class="go ghost" id="btnMulti">👥 같이 하기 (2~4명)</button>
     <button class="go ghost" id="btnStart">스테이지 모드</button>
     <button class="go ghost" id="btnPick">스테이지 선택</button>
   </div>
@@ -96,6 +119,28 @@
     <h2>스테이지</h2>
     <div id="lvGrid"></div>
     <button class="go ghost" id="btnLvClose">닫기</button>
+  </div>
+</div>
+
+<div class="ov" id="ovMulti">
+  <div class="card">
+    <h2>같이 하기</h2>
+    <div id="mpConn">
+      <p>같은 판으로 60초 승부! 점수로 승패를 가려요.<br><em>개인전</em>(2~4명) 또는 <em>2:2 팀전</em>(4명)</p>
+      <input class="mpin" id="mpName" maxlength="8" placeholder="내 이름 (8자까지)" autocomplete="off">
+      <button class="go" id="mpCreate">방 만들기</button>
+      <div class="mprow"><input class="mpin" id="mpCode" maxlength="4" placeholder="방 코드" autocomplete="off"><button class="go ghost" id="mpJoin">참가</button></div>
+    </div>
+    <div id="mpRoom" style="display:none">
+      <div class="mpcode">방 코드<b id="mpCodeShow"></b></div>
+      <button class="go ghost" id="mpCopy" style="margin-top:8px;padding:10px;font-size:15px">초대 링크 복사</button>
+      <div id="mpMode"></div>
+      <div id="mpList"></div>
+      <p id="mpHint"></p>
+      <button class="go" id="mpStart">시작</button>
+    </div>
+    <p class="mpmsg" id="mpMsg"></p>
+    <button class="go ghost" id="mpClose">나가기</button>
   </div>
 </div>
 
@@ -264,7 +309,7 @@ const rr=(x,y,w,h,r)=>rrp(g,x,y,w,h,r);
 const idx=(r,c)=>r*COLS+c;
 
 /* ───────── 상태 ───────── */
-const G={level:1,types:5,timeLeft:0,timeMax:60,running:false,timeUp:false,moves:0,movesMax:0,score:0,target:0,collect:null,collected:0,grid:[],dying:[],particles:[],texts:[],fx:[],
+const G={level:1,types:5,timeLeft:0,timeMax:60,running:false,timeUp:false,vs:false,cd:0,_cdn:-1,_sent:-1,_sentAt:0,moves:0,movesMax:0,score:0,target:0,collect:null,collected:0,grid:[],dying:[],particles:[],texts:[],fx:[],
   busy:true,over:false,sel:null,hint:null,idle:0,t:0,theme:THEMES[0],banner:null,
   mode:'stage',playT:0,sLv:1,interval:9,dropT:0,next:[],topRow:99,dn:0,_bf:-1};
 let cell=50,cw=360,ch=360,bx=20,by=20,dpr=1,backdrop=null;
@@ -574,6 +619,8 @@ async function afterTurn(){
 /* ───────── HUD ───────── */
 function updateHud(){
   const stack=G.mode==='stack',sc=Math.min(G.score,99999999);
+  $('goal').style.display=G.vs?'none':'';$('vs').style.display=G.vs?'flex':'none';
+  if(G.vs)renderVsBar();
   $('goalLab').style.display=stack?'':'none';
   $('bar').firstElementChild.className=stack?'fast':'';
   if(stack){
@@ -583,7 +630,7 @@ function updateHud(){
     $('goalTxt').innerHTML='<b>'+sc.toLocaleString()+'</b>점';
     return;
   }
-  $('lvLabel').textContent='스테이지 '+G.level;
+  $('lvLabel').textContent=G.vs?'같이 하기':'스테이지 '+G.level;
   $('mvLab').textContent='남은 시간';
   $('mvN').textContent=Math.ceil(Math.max(0,G.timeLeft))+'초';
   $('mvChip').classList.toggle('warn',G.timeLeft<=10&&!G.over);
@@ -599,11 +646,11 @@ function updateHud(){
 /* ───────── 레벨 시작/결과 ───────── */
 function startLevel(n){
   const cfg=levelCfg(n);
-  G.mode='stage';ROWS=7;save.mode='stage';persist();
+  G.mode='stage';G.vs=false;G.cd=0;ROWS=7;save.mode='stage';persist();
   G.level=n;G.types=cfg.types;G.timeLeft=G.timeMax=cfg.time;G.running=false;G.timeUp=false;G.moves=G.movesMax=0;G.target=cfg.target;G.collect=null;G.collected=0;
   G.score=0;G.over=false;G.sel=null;G.hint=null;G.idle=0;G.chainMax=0;G.theme=themeOf(n);
   G.dying=[];G.particles=[];G.texts=[];G.fx=[];G.banner=null;waiters.length=0;
-  ['ovResult','ovLevels','ovTitle'].forEach(id=>$(id).classList.remove('show'));
+  ['ovResult','ovLevels','ovTitle','ovMulti'].forEach(id=>$(id).classList.remove('show'));
   resize();
   fillInitial();
   if(!hasMove()||findMatches().cells.size){fillInitial();}
@@ -618,17 +665,19 @@ function startLevel(n){
 async function endStage(){ // 시간 종료: 정리 중이던 연쇄까지 끝난 뒤 결과
   G.over=true;G.busy=true;updateHud();
   await waitTime(.6);
+  if(G.vs){vsFinish();return;}
   if(G.score>=G.target)showWin();else showFail();
 }
+function showResultOv(){$('btnNext').style.display=$('btnAgain').style.display='';$('ovResult').classList.add('show');}
 /* ───────── 쌓이기 모드 ───────── */
 const STACK_TIP='몇 초마다 새 줄이 떨어져 쌓여요. 3개 이상 맞춰 치우세요! 빈칸으로 옮겨도 돼요.';
 function startStack(){
-  G.mode='stack';ROWS=STACK_ROWS;save.mode='stack';persist();
+  G.mode='stack';G.vs=false;G.cd=0;ROWS=STACK_ROWS;save.mode='stack';persist();
   G.level=1;G.sLv=1;G.playT=0;G.types=typesFor(1);G.interval=intervalFor(1);G.dropT=-2; // 첫 줄은 여유 있게
   G.moves=G.movesMax=0;G.target=1;G.collect=null;G.collected=0;
   G.score=0;G.over=false;G.sel=null;G.hint=null;G.idle=0;G.chainMax=0;G.theme=THEMES[0];G.dn=0;G._bf=-1;
   G.dying=[];G.particles=[];G.texts=[];G.fx=[];G.banner=null;waiters.length=0;
-  ['ovResult','ovLevels','ovTitle'].forEach(id=>$(id).classList.remove('show'));
+  ['ovResult','ovLevels','ovTitle','ovMulti'].forEach(id=>$(id).classList.remove('show'));
   resize();
   let k=0;do{fillInitial(STACK_START);k++;}while(k<20&&!hasMove());
   G.next=genRow();
@@ -644,7 +693,7 @@ function showStackResult(newBest){
   $('resMsg').innerHTML=(newBest?'<em>🎉 신기록!</em><br>':'최고 기록 '+(save.best||0).toLocaleString()+'점<br>')+'Lv '+G.sLv+' · '+(sec>=60?Math.floor(sec/60)+'분 ':'')+sec%60+'초 버텼어요<br><small style="color:#9aa0ae">최고 연쇄 x'+(G.chainMax||1)+'</small>';
   $('btnNext').textContent='다시 도전';$('btnNext').onclick=()=>{enterFs();startStack();};
   $('btnAgain').textContent='모드 선택';$('btnAgain').onclick=showTitle;
-  $('ovResult').classList.add('show');
+  showResultOv();
 }
 function showTitle(){
   $('ovResult').classList.remove('show');
@@ -662,7 +711,7 @@ function showWin(){
   $('resMsg').innerHTML='점수 '+G.score.toLocaleString()+' / 목표 '+G.target.toLocaleString()+'<br><small style="color:#9aa0ae">최고 연쇄 x'+(G.chainMax||1)+'</small>';
   $('btnNext').textContent='다음 스테이지';$('btnNext').onclick=()=>{enterFs();startLevel(G.level+1);};
   $('btnAgain').textContent='다시 하기';$('btnAgain').onclick=()=>startLevel(G.level);
-  $('ovResult').classList.add('show');
+  showResultOv();
 }
 function showFail(){
   sfx.fail();
@@ -671,7 +720,7 @@ function showFail(){
   $('resMsg').textContent='주문이 밀렸어요. 점수가 '+(G.target-G.score).toLocaleString()+'점 모자라요.';
   $('btnNext').textContent='다시 도전';$('btnNext').onclick=()=>startLevel(G.level);
   $('btnAgain').textContent='모드 선택';$('btnAgain').onclick=showTitle;
-  $('ovResult').classList.add('show');
+  showResultOv();
 }
 function openLevels(){
   const grid=$('lvGrid');grid.innerHTML='';
@@ -860,7 +909,13 @@ function update(dt){
   runWaiters(dt);
   if(!G.over&&!ovOpen()){
     if(G.mode==='stack')stackTick(dt);
-    else if(G.running){
+    else if(G.cd>0){
+      G.cd-=dt;
+      const n=G.cd>.5?Math.ceil(G.cd-.5):0;
+      if(n!==G._cdn){G._cdn=n;G.banner={text:n?String(n):'시작!',t:0,life:.9};}
+      if(G.cd<=0){G.cd=0;G.running=true;G.busy=false;}
+    }else if(G.running){
+      if(G.vs&&G.score!==G._sent&&G.t-G._sentAt>.25){G._sent=G.score;G._sentAt=G.t;mpSend({t:'score',score:G.score});}
       const sec=Math.ceil(G.timeLeft);G.timeLeft=Math.max(0,G.timeLeft-dt);
       if(Math.ceil(G.timeLeft)!==sec)updateHud();
       if(G.timeLeft<=0){G.timeUp=true;if(!G.busy)endStage();}
@@ -868,7 +923,7 @@ function update(dt){
   }
   if(!G.busy&&!G.over&&!G.hint){G.idle+=dt;if(G.idle>6){const mv=allMoves();if(mv.length)G.hint=mv[(Math.random()*mv.length)|0];}}
 }
-const ovOpen=()=>['ovTitle','ovLevels','ovResult'].some(id=>$(id).classList.contains('show'));
+const ovOpen=()=>['ovTitle','ovLevels','ovResult','ovMulti'].some(id=>$(id).classList.contains('show'));
 // 쌓이기: 시간이 지날수록 빨라지고 음식 종류가 늘어난다. 정리 중에도 타이머는 흐르고, 다 끝나야 다음 줄이 떨어진다
 function stackTick(dt){
   G.playT+=dt;
@@ -921,6 +976,157 @@ cv.addEventListener('pointermove',e=>{
 const endDrag=e=>{if(drag&&e.pointerId===drag.id)drag=null;};
 cv.addEventListener('pointerup',endDrag);cv.addEventListener('pointercancel',endDrag);
 
+
+/* ───────── 같이 하기 (온라인 대결) ───────── */
+// 서버(server.js)를 따로 올렸다면 아래 주소를 그 주소로 바꾼다. (같은 서버에서 이 페이지를 열면 자동으로 같은 주소를 쓴다)
+const MP_REMOTE='wss://bunsikpang.onrender.com';
+const MP={ws:null,room:null,you:null,result:null,finished:false};
+const mpUrl=()=>{const h=location.hostname;if(location.protocol==='file:'||h.endsWith('github.io'))return MP_REMOTE;return(location.protocol==='https:'?'wss://':'ws://')+location.host;};
+function mpSend(o){if(MP.ws&&MP.ws.readyState===1)MP.ws.send(JSON.stringify(o));}
+function mpMsg(t){$('mpMsg').textContent=t||'';}
+function mpConnect(first){
+  mpMsg('연결 중…');
+  let ws;try{ws=new WebSocket(mpUrl());}catch(e){mpMsg('서버에 연결할 수 없어요.');return;}
+  MP.ws=ws;
+  ws.onopen=()=>{mpMsg('');ws.send(JSON.stringify(first));};
+  ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch(_){return;}mpOn(m);};
+  ws.onclose=()=>{
+    if(MP.ws!==ws)return;MP.ws=null;
+    if(MP.room&&G.vs&&G.mode==='stage'&&!MP.finished){MP.room=null;vsAbort('연결이 끊겼어요.');}
+    else if(MP.room){MP.room=null;showMpConn();mpMsg('연결이 끊겼어요.');}
+    else mpMsg('서버에 연결할 수 없어요. 잠시 뒤 다시 해 주세요.');
+  };
+}
+function mpLeave(){mpSend({t:'leave'});const w=MP.ws;MP.ws=null;MP.room=null;MP.finished=false;try{w&&w.close();}catch(e){}}
+function mpOn(m){
+  if(m.t==='err'){mpMsg(m.msg);return;}
+  if(m.t==='room'){
+    MP.room=m;MP.you=m.you;
+    if(G.vs&&G.mode==='stage'&&m.state==='play'){renderVsBar();return;}
+    if(m.state==='lobby'){MP.finished=false;$('ovResult').classList.remove('show');$('ovTitle').classList.remove('show');$('ovMulti').classList.add('show');showMpRoom();}
+    return;
+  }
+  if(m.t==='start'){startVersus(m.seed);return;}
+  if(m.t==='scores'){if(MP.room){for(const q of m.players){const p=MP.room.players.find(x=>x.id===q.id);if(p){p.score=q.score;p.done=q.done;}}renderVsBar();}return;}
+  if(m.t==='result'){MP.result=m;MP.finished=true;showVsResult(m);return;}
+}
+function showMpConn(){$('mpConn').style.display='';$('mpRoom').style.display='none';$('mpClose').textContent='닫기';}
+function showMpRoom(){
+  const r=MP.room;if(!r)return;
+  $('mpConn').style.display='none';$('mpRoom').style.display='';$('mpClose').textContent='방 나가기';
+  $('mpCodeShow').textContent=r.code;
+  const host=r.host===MP.you,team=r.mode==='team';
+  $('mpMode').innerHTML='';
+  for(const [k,lab] of [['ffa','개인전'],['team','2:2 팀전']]){
+    const b=document.createElement('button');b.className='go ghost'+(r.mode===k?' on':'');b.textContent=lab;
+    b.disabled=!host;b.style.opacity=!host&&r.mode!==k?.4:1;
+    b.onclick=()=>mpSend({t:'mode',mode:k});$('mpMode').appendChild(b);
+  }
+  const list=$('mpList');list.innerHTML='';
+  for(const p of r.players){
+    const d=document.createElement('div');d.className='mpl'+(p.id===MP.you?' me':'');
+    d.innerHTML='<span class="nm"></span>';d.firstChild.textContent=(p.id===r.host?'👑 ':'')+p.name+(p.id===MP.you?' (나)':'');
+    if(team){const t=document.createElement('button');t.className='tb '+p.team;t.textContent=p.team+'팀';
+      if(p.id===MP.you)t.onclick=()=>mpSend({t:'team',team:p.team==='A'?'B':'A'});else t.disabled=true;d.appendChild(t);}
+    list.appendChild(d);
+  }
+  const n=r.players.length,a=r.players.filter(p=>p.team==='A').length,b=n-a;
+  const ok=team?(n===4&&a===2&&b===2):n>=2;
+  $('mpHint').textContent=team?(ok?'준비 완료!':'4명이 2:2로 나뉘어야 해요. (내 팀 버튼을 눌러 바꿔요) 지금 '+n+'명 · A '+a+' / B '+b):(n<2?'친구를 기다리는 중… 방 코드나 초대 링크를 알려주세요.':'지금 '+n+'명 · 시작할 수 있어요!');
+  $('mpStart').style.display=host?'':'none';$('mpStart').disabled=!ok;
+  if(!host&&ok)$('mpHint').textContent+=' 방장이 시작하길 기다려요.';
+}
+function vsRank(players){ // 점수 높은 순, 동점은 같은 등수
+  const sorted=[...players].sort((a,b)=>b.score-a.score);let rk=0,prev=null;
+  sorted.forEach((p,i)=>{if(p.score!==prev){rk=i+1;prev=p.score;}p.rank=rk;});
+  return sorted;
+}
+function renderVsBar(){
+  const r=MP.room;if(!r||!G.vs)return;
+  const me=r.players.find(p=>p.id===MP.you);if(me)me.score=G.score;
+  const bar=$('vs');let h='';
+  if(r.mode==='team'){
+    const sum=t=>r.players.filter(p=>p.team===t).reduce((s,p)=>s+p.score,0);
+    for(const t of ['A','B'])h+='<span class="vsp t'+t+(me&&me.team===t?' me':'')+'">'+t+'팀 <b>'+sum(t).toLocaleString()+'</b></span>';
+    h+='<div style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap">';
+  }
+  for(const p of vsRank(r.players)){
+    const nm=document.createElement('span');nm.textContent=p.name;
+    h+='<span class="vsp'+(p.id===MP.you?' me':'')+'">'+(p.left?'🚪':p.rank+'.')+' '+nm.innerHTML+'<b>'+p.score.toLocaleString()+'</b></span>';
+  }
+  if(r.mode==='team')h+='</div>';
+  bar.innerHTML=h;
+}
+function startVersus(seed){
+  G.mode='stage';G.vs=true;ROWS=7;
+  G.level=1;G.types=6;G.timeLeft=G.timeMax=60;G.running=false;G.timeUp=false;G.cd=3.6;G._cdn=-1;G._sent=-1;G._sentAt=0;
+  G.moves=G.movesMax=0;G.target=1;G.collect=null;G.collected=0;MP.finished=false;MP.result=null;
+  G.score=0;G.over=false;G.sel=null;G.hint=null;G.idle=0;G.chainMax=0;G.theme=THEMES[0];
+  G.dying=[];G.particles=[];G.texts=[];G.fx=[];G.banner=null;waiters.length=0;
+  ['ovResult','ovLevels','ovTitle','ovMulti'].forEach(id=>$(id).classList.remove('show'));
+  resize();
+  const old=Math.random;
+  try{let k=0;Math.random=mulberry32(seed);do{fillInitial();k++;}while(k<20&&(findMatches().cells.size||!hasMove()));}finally{Math.random=old;} // 모두 같은 시작 판
+  $('tip').textContent='같은 판으로 60초! 점수가 높은 쪽이 이겨요. 4연쇄 이상은 시간 +2초.';$('tip').style.color='';
+  G.busy=true;
+  updateHud();
+}
+function vsFinish(){
+  mpSend({t:'done',score:G.score});
+  $('resTitle').textContent='시간 종료!';
+  $('resStars').innerHTML='<span style="font-size:46px;letter-spacing:0">'+G.score.toLocaleString()+'</span>';
+  $('resMsg').textContent='다른 사람들이 끝나길 기다리는 중…';
+  $('btnNext').style.display=$('btnAgain').style.display='none';
+  $('ovResult').classList.add('show');
+}
+function vsAbort(msg){
+  G.over=true;G.busy=true;
+  $('resTitle').textContent='대결 종료';
+  $('resStars').innerHTML='<span style="font-size:46px;letter-spacing:0">'+G.score.toLocaleString()+'</span>';
+  $('resMsg').textContent=msg;
+  $('btnNext').textContent='처음으로';$('btnNext').onclick=()=>{mpLeave();showTitle();};
+  $('btnAgain').style.display='none';$('btnNext').style.display='';$('ovResult').classList.add('show');
+}
+function showVsResult(m){
+  const players=vsRank(m.players.map(p=>({...p})));
+  const me=players.find(p=>p.id===MP.you)||{score:G.score,rank:9,team:'A'};
+  let title,rows='',lost=false;
+  if(m.mode==='team'&&m.team){
+    const mine=me.team,other=mine==='A'?'B':'A';
+    lost=m.team[mine]<m.team[other];
+    title=m.team[mine]>m.team[other]?'🏆 우리 팀 승리!':lost?'아쉽게 패배':'무승부';
+    rows+='<div class="rk'+(m.team.A>=m.team.B?' me':'')+'"><span>A팀</span><b>'+m.team.A.toLocaleString()+'</b></div><div class="rk'+(m.team.B>=m.team.A?' me':'')+'"><span>B팀</span><b>'+m.team.B.toLocaleString()+'</b></div><div style="height:8px"></div>';
+  }else{
+    const tie=players.filter(p=>p.rank===1).length>1;
+    lost=me.rank>1;
+    title=me.rank===1?(tie?'🤝 공동 1등!':'🏆 1등!'):me.rank+'등';
+  }
+  for(const p of players){const nm=document.createElement('span');nm.textContent=(m.mode==='team'?'['+p.team+'] ':p.rank+'등 ')+p.name+(p.left?' (나감)':'');
+    rows+='<div class="rk'+(p.id===MP.you?' me':'')+'">'+nm.outerHTML+'<b>'+p.score.toLocaleString()+'</b></div>';}
+  lost?sfx.fail():sfx.clear();
+  $('resTitle').textContent=title;
+  $('resStars').innerHTML='<span style="font-size:46px;letter-spacing:0">'+me.score.toLocaleString()+'</span>';
+  $('resMsg').innerHTML=rows;
+  $('btnNext').textContent='한 판 더';$('btnNext').onclick=()=>mpSend({t:'lobby'});
+  $('btnAgain').textContent='나가기';$('btnAgain').onclick=()=>{mpLeave();showTitle();};
+  showResultOv();
+}
+function openMulti(code){
+  $('ovTitle').classList.remove('show');$('ovMulti').classList.add('show');showMpConn();mpMsg('');
+  $('mpName').value=save.name||'';if(code)$('mpCode').value=code;
+}
+const mpName=()=>{const n=$('mpName').value.trim().slice(0,8)||'손님';save.name=n;persist();return n;};
+$('btnMulti').onclick=()=>{ac();openMulti();};
+$('mpCreate').onclick=()=>{enterFs();mpConnect({t:'create',name:mpName()});};
+$('mpJoin').onclick=()=>{const c=$('mpCode').value.trim().toUpperCase();if(c.length!==4){mpMsg('방 코드 4글자를 넣어 주세요.');return;}enterFs();mpConnect({t:'join',code:c,name:mpName()});};
+$('mpStart').onclick=()=>{enterFs();mpSend({t:'start'});};
+$('mpClose').onclick=()=>{mpLeave();$('ovMulti').classList.remove('show');showTitle();};
+$('mpCopy').onclick=()=>{
+  const url=location.origin+location.pathname+'?room='+(MP.room?MP.room.code:'');
+  const done=()=>{$('mpCopy').textContent='복사됨!';setTimeout(()=>{$('mpCopy').textContent='초대 링크 복사';},1500);};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>mpMsg(url));else mpMsg(url);
+};
+
 /* ───────── 버튼 · 전체화면 ───────── */
 const fsEl=document.documentElement;
 const fsReq=fsEl.requestFullscreen||fsEl.webkitRequestFullscreen;
@@ -929,8 +1135,8 @@ function enterFs(){if(!fsReq||fsOn())return;try{const p=fsReq.call(fsEl,{navigat
 function toggleFs(){if(fsOn()){try{(document.exitFullscreen||document.webkitExitFullscreen).call(document);}catch(e){}}else enterFs();}
 if(fsReq){$('btnFs').style.display='';$('btnFs').onclick=toggleFs;}
 ['fullscreenchange','webkitfullscreenchange'].forEach(ev=>document.addEventListener(ev,()=>{$('btnFs').textContent=fsOn()?'✕':'⛶';setTimeout(resize,60);}));
-$('btnRetry').onclick=()=>G.mode==='stack'?startStack():startLevel(G.level);
-$('btnLevels').onclick=()=>G.mode==='stack'?showTitle():openLevels();
+$('btnRetry').onclick=()=>{if(G.vs)return;G.mode==='stack'?startStack():startLevel(G.level);};
+$('btnLevels').onclick=()=>{if(G.vs){if(confirm('대결을 그만두고 나갈까요?')){mpLeave();showTitle();}return;}G.mode==='stack'?showTitle():openLevels();};
 $('btnPick').onclick=openLevels;
 $('btnLvClose').onclick=()=>$('ovLevels').classList.remove('show');
 $('btnStack').onclick=()=>{ac();enterFs();startStack();};
@@ -941,6 +1147,7 @@ const startN=Math.min(save.max,200);
 $('btnStart').textContent=startN>1?'스테이지 모드 — 이어하기 '+startN:'스테이지 모드';
 if(save.mode==='stage')startLevel(startN);else startStack();
 showTitle();
+{const q=new URLSearchParams(location.search).get('room');if(q&&/^[A-Za-z]{4}$/.test(q))openMulti(q.toUpperCase());}
 requestAnimationFrame(loop);
 if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>buildBackdrop());

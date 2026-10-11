@@ -2,3 +2,4 @@ image/
 _*.py
 _*.png
 _*.js
+node_modules/
